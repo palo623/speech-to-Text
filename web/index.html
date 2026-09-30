@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metodo A - Transcripcion con Web Speech API</title>
+<style>
+  :root {
+    --borde: #d0d7de;
+    --fondo: #ffffff;
+    --texto: #1f2328;
+    --tenue: #656d76;
+    --acento: #1a7f37;
+    --error: #cf222e;
+    --aviso: #9a6700;
+    --codigo: #f6f8fa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+    color: var(--texto);
+    background: var(--fondo);
+    line-height: 1.55;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid var(--borde);
+       padding-bottom: .3rem; }
+  .sub { color: var(--tenue); font-size: .9rem; margin-top: 0; }
+  fieldset { border: 1px solid var(--borde); border-radius: 6px;
+             padding: 12px 14px; margin: 0 0 16px; }
+  legend { font-weight: 600; font-size: .85rem; padding: 0 6px; }
+  label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; }
+  input, textarea, select, button { font: inherit; }
+  input[type=text], textarea, select {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--borde);
+    border-radius: 6px; background: var(--fondo); color: var(--texto);
+  }
+  textarea { min-height: 110px; resize: vertical; font-family: inherit; }
+  .fila { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .fila > div { flex: 1 1 180px; }
+  button {
+    padding: 9px 16px; border: 1px solid var(--borde); border-radius: 6px;
+    background: var(--codigo); color: var(--texto); cursor: pointer;
+    font-weight: 600;
+  }
+  button:hover:not(:disabled) { background: #eaeef2; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.principal { background: var(--acento); border-color: var(--acento); color: #fff; }
+  button.principal:hover:not(:disabled) { background: #1a6f31; }
+  button.parar { background: var(--error); border-color: var(--error); color: #fff; }
+  button.parar:hover:not(:disabled) { background: #b91c26; }
+  .estado { padding: 9px 12px; border-radius: 6px; font-size: .875rem;
+            margin: 12px 0; border: 1px solid var(--borde); background: var(--codigo); }
+  .estado.ok { border-color: var(--acento); color: var(--acento); }
+  .estado.error { border-color: var(--error); color: var(--error); }
+  .estado.aviso { border-color: var(--aviso); color: var(--aviso); }
+  .estado.inactivo { color: var(--tenue); }
+  table { border-collapse: collapse; width: 100%; font-size: .875rem; margin-top: 8px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--borde); }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; color: var(--tenue); }
+  code { background: var(--codigo); padding: 1px 5px; border-radius: 4px;
+         font-family: ui-monospace, Consolas, monospace; font-size: .875em; }
+  .nota { font-size: .85rem; color: var(--tenue); }
+  .nota ul { margin: 6px 0; padding-left: 20px; }
+  audio, video { width: 100%; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>Metodo A &middot; Transcripcion con la Web Speech API</h1>
+<p class="sub">
+  Grabacion en tiempo real desde el navegador. Se compara despues con Gemini
+  usando <code>py -3 src\comparar.py</code>.
+</p>
+
+<div id="soporte" class="estado"></div>
+
+<fieldset>
+  <legend>1. Configuracion</legend>
+  <div class="fila">
+    <div>
+      <label for="idioma">Idioma</label>
+      <select id="idioma">
+        <option value="es-ES" selected>es-ES &middot; Espanol (Espana)</option>
+        <option value="es-MX">es-MX &middot; Espanol (Mexico)</option>
+        <option value="es-AR">es-AR &middot; Espanol (Argentina)</option>
+        <option value="en-US">en-US &middot; Ingles (EE. UU.)</option>
+        <option value="en-GB">en-GB &middot; Ingles (Reino Unido)</option>
+        <option value="fr-FR">fr-FR &middot; Frances</option>
+        <option value="de-DE">de-DE &middot; Aleman</option>
+        <option value="it-IT">it-IT &middot; Italiano</option>
+        <option value="pt-BR">pt-BR &middot; Portugues (Brasil)</option>
+      </select>
+    </div>
+    <div>
+      <label for="nombre">Nombre del audio de referencia</label>
+      <input type="text" id="nombre" placeholder="audio1" value="audio1">
+    </div>
+  </div>
+  <p class="nota">
+    El nombre debe coincidir con el del fichero en <code>audios/</code>. Sirve
+    para saber donde guardar el resultado.
+  </p>
+</fieldset>
+
+<fieldset>
+  <legend>2. Opcion A - Grabar con el microfono</legend>
+  <p class="nota">
+    Habla al microfono. La transcripcion aparece en vivo, frase a frase.
+  </p>
+  <button id="btnGrabar" class="principal">Empezar a grabar</button>
+  <div id="estadoMicro" class="estado inactivo">Parado.</div>
+</fieldset>
+
+<fieldset>
+  <legend>3. Opcion B - Reproducir un audio y transcribirlo</legend>
+  <p class="nota">
+    Para puntuar la Web Speech API sobre los mismos ficheros que usas con
+    Gemini. Reproduce el audio por los altavoces mientras el microfono captura:
+    el sonido vuelve a entrar por la microfono, asi que la senal llega degradada.
+    Usa auriculares solo si quieres transcribir otra voz (el micro no oiria el
+    audio, entonces dara silencio).
+  </p>
+  <input type="file" id="fichero" accept="audio/*">
+  <audio id="reproductor" controls></audio>
+  <div style="margin-top:10px">
+    <button id="btnReproducir">Reproducir y transcribir</button>
+  </div>
+  <div id="estadoReplay" class="estado inactivo">Parado.</div>
+</fieldset>
+
+<fieldset>
+  <legend>4. Texto transcrito</legend>
+  <label for="salida">Resultado</label>
+  <textarea id="salida" placeholder="La transcripcion aparecera aqui..."></textarea>
+  <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap">
+    <button id="btnGuardar" disabled>Guardar como .txt</button>
+    <button id="btnCopiar" disabled>Copiar</button>
+    <button id="btnLimpiar">Limpiar</button>
+  </div>
+  <div id="estadoGuardado" class="estado inactivo">
+    Guarda el texto en <code>resultados/&lt;nombre&gt;.webspeech.txt</code>
+  </div>
+</fieldset>
+
+<h2>Que hace falta</h2>
+<div class="nota">
+  <ul>
+    <li>Chrome o Edge. Firefox y Safari no implementan
+        <code>webkitSpeechRecognition</code>.</li>
+    <li>Conexion a internet: Chrome envia el audio a servidores de Google.</li>
+    <li>Permiso de microfono en el navegador.</li>
+    <li>En Chrome el dictado se corta solo a los ~60 s. Usa el boton de parar
+        para dejar la frase completa y anadirla a mano si hace falta.</li>
+  </ul>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const Reconocimiento = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  const els = {
+    soporte: document.getElementById("soporte"),
+    idioma: document.getElementById("idioma"),
+    nombre: document.getElementById("nombre"),
+    btnGrabar: document.getElementById("btnGrabar"),
+    estadoMicro: document.getElementById("estadoMicro"),
+    fichero: document.getElementById("fichero"),
+    reproductor: document.getElementById("reproductor"),
+    btnReproducir: document.getElementById("btnReproducir"),
+    estadoReplay: document.getElementById("estadoReplay"),
+    salida: document.getElementById("salida"),
+    btnGuardar: document.getElementById("btnGuardar"),
+    btnCopiar: document.getElementById("btnCopiar"),
+    btnLimpiar: document.getElementById("btnLimpiar"),
+    estadoGuardado: document.getElementById("estadoGuardado"),
+  };
+
+  function estado(el, texto, clase) {
+    el.textContent = texto;
+    el.className = "estado" + (clase ? " " + clase : "");
+  }
+
+  // ---------------------------------------------------------------- soporte
+  if (!Reconocimiento) {
+    estado(els.soporte,
+      "Este navegador no soporta la Web Speech API. Abre la pagina en Chrome o Edge.",
+      "error");
+    els.btnGrabar.disabled = true;
+    els.btnReproducir.disabled = true;
+    return;
+  }
+  estado(els.soporte, "Navegador compatible. Todo listo para grabar.", "ok");
+
+  // ------------------------------------------------------------- estado global
+  let reconocimiento = null;
+  let transcripcionActual = "";
+  let modo = null;          // "micro" | "replay"
+  let destino = null;       // Blob del fichero cargado
+  let procesando = false;
+
+  function textoFinal() {
+    return els.salida.value.trim();
+  }
+
+  function actualizarBotones() {
+    const hay = textoFinal().length > 0;
+    els.btnGuardar.disabled = !hay;
+    els.btnCopiar.disabled = !hay;
+  }
+
+  els.salida.addEventListener("input", actualizarBotones);
+  els.btnLimpiar.addEventListener("click", function () {
+    els.salida.value = "";
+    actualizarBotones();
+    estado(els.estadoGuardado, "Texto borrado.", "inactivo");
+  });
+
+  // ------------------------------------------------------------- reconocimiento
+  function crearReconocimiento() {
+    const rec = new Reconocimiento();
+    rec.lang = els.idioma.value;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = function () {
+      if (modo === "micro") {
+        estado(els.estadoMicro, "Grabando. Habla ahora.", "ok");
+        els.btnGrabar.textContent = "Parar";
+        els.btnGrabar.className = "parar";
+      } else {
+        estado(els.estadoReplay, "Reproduciendo y transcribiendo...", "ok");
+        els.btnReproducir.textContent = "Parar";
+        els.btnReproducir.className = "parar";
+      }
+    };
+
+    rec.onresult = function (evento) {
+      let final = "";
+      let provisional = "";
+      for (let i = evento.resultIndex; i < evento.results.length; i++) {
+        const r = evento.results[i];
+        if (r.isFinal) final += r[0].transcript;
+        else provisional += r[0].transcript;
+      }
+      if (final) {
+        transcripcionActual = (transcripcionActual + " " + final).trim() + " ";
+        els.salida.value = transcripcionActual + provisional;
+      } else {
+        els.salida.value = transcripcionActual + provisional;
+      }
+      actualizarBotones();
+    };
+
+    rec.onerror = function (evento) {
+      const mensajes = {
+        "not-allowed": "Permiso de microfono denegado. Aceptalo en el navegador.",
+        "service-not-allowed": "El navegador ha bloqueado el servicio de voz. " +
+          "Prueba con Chrome o Edge, o revisa la conexion.",
+        "no-speech": "No se ha detectado voz.",
+        "audio-capture": "No se encuentra ningun microfono.",
+        "network": "Error de red. La Web Speech API necesita conexion.",
+        "aborted": "Transcripcion cancelada.",
+      };
+      estado(modo === "micro" ? els.estadoMicro : els.estadoReplay,
+        mensajes[evento.error] || ("Error: " + evento.error), "error");
+    };
+
+    rec.onend = function () {
+      // En modo replay no reiniciamos: el audio ya ha terminado.
+      if (modo === "replay" && !procesando) {
+        estado(els.estadoReplay, "Reproduccion terminada.", "aviso");
+        els.btnReproducir.textContent = "Reproducir y transcribir";
+        els.btnReproducir.className = "";
+        modo = null;
+        return;
+      }
+      if (modo === "micro") {
+        estado(els.estadoMicro,
+          "Parado. Chrome corta el dictado a los ~60 s; revisa que no falte el final.",
+          "aviso");
+        els.btnGrabar.textContent = "Empezar a grabar";
+        els.btnGrabar.className = "principal";
+      }
+    };
+
+    return rec;
+  }
+
+  function parar() {
+    if (reconocimiento) {
+      try { reconocimiento.stop(); } catch (e) { /* ya estaba parado */ }
+    }
+    if (modo === "replay") {
+      els.reproductor.pause();
+      procesando = false;
+      els.btnReproducir.textContent = "Reproducir y transcribir";
+      els.btnReproducir.className = "";
+      estado(els.estadoReplay, "Parado.", "aviso");
+    }
+  }
+
+  // ------------------------------------------------------------- microfono
+  els.btnGrabar.addEventListener("click", function () {
+    if (modo === "micro") { parar(); return; }
+    if (modo === "replay") parar();
+
+    transcripcionActual = "";
+    els.salida.value = "";
+    actualizarBotones();
+
+    modo = "micro";
+    reconocimiento = crearReconocimiento();
+    try {
+      reconocimiento.start();
+    } catch (e) {
+      estado(els.estadoMicro, "No se pudo iniciar: " + e.message, "error");
+    }
+  });
+
+  // ------------------------------------------------------------- replay
+  els.fichero.addEventListener("change", function () {
+    destino = els.fichero.files[0] || null;
+    if (destino) {
+      els.reproductor.src = URL.createObjectURL(destino);
+      if (!els.nombre.value) {
+        els.nombre.value = destino.name.replace(/\.[^.]+$/, "");
+      }
+    }
+  });
+
+  els.btnReproducir.addEventListener("click", function () {
+    if (modo === "replay") { parar(); return; }
+    if (!destino) {
+      estado(els.estadoReplay, "Selecciona antes un fichero de audio.", "error");
+      return;
+    }
+    if (modo === "micro") parar();
+
+    transcripcionActual = "";
+    els.salida.value = "";
+    actualizarBotones();
+
+    modo = "replay";
+    procesando = true;
+    reconocimiento = crearReconocimiento();
+    try {
+      reconocimiento.start();
+    } catch (e) {
+      procesando = false;
+      estado(els.estadoReplay, "No se pudo iniciar: " + e.message, "error");
+      return;
+    }
+
+    els.reproductor.currentTime = 0;
+    els.reproductor.play().catch(function (e) {
+      procesando = false;
+      estado(els.estadoReplay,
+        "El navegador bloqueo la reproduccion automatica. Pulsa play y luego " +
+        "'Reproducir y transcribir'. (" + e.message + ")", "error");
+    });
+  });
+
+  els.reproductor.addEventListener("ended", function () {
+    if (modo === "replay") {
+      procesando = false;
+      if (reconocimiento) {
+        try { reconocimiento.stop(); } catch (e) { /* ya estaba parado */ }
+      }
+      estado(els.estadoReplay,
+        "Audio terminado. Guarda el texto antes de pasar al siguiente.", "aviso");
+    }
+  });
+
+  // ------------------------------------------------------------- guardar
+  function nombreFichero() {
+    let n = (els.nombre.value || "audio").trim().replace(/\.[^.]+$/, "");
+    n = n.replace(/[\\/:*?"<>|]/g, "_");
+    return n ? n + ".webspeech.txt" : "audio.webspeech.txt";
+  }
+
+  els.btnGuardar.addEventListener("click", function () {
+    const texto = textoFinal();
+    if (!texto) return;
+    const blob = new Blob([texto + "\n"], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nombreFichero();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    estado(els.estadoGuardado,
+      "Descargado '" + a.download + "'. Muevelo a la carpeta resultados/ para que " +
+      "comparar.py lo encuentre.", "ok");
+  });
+
+  els.btnCopiar.addEventListener("click", function () {
+    const texto = textoFinal();
+    if (!texto) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(
+        function () { estado(els.estadoGuardado, "Copiado al portapapeles.", "ok"); },
+        function () { estado(els.estadoGuardado, "No se pudo copiar.", "error"); }
+      );
+    } else {
+      els.salida.select();
+      document.execCommand("copy");
+      estado(els.estadoGuardado, "Copiado al portapapeles.", "ok");
+    }
+  });
+
+  actualizarBotones();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+Aqui van los 3 audios de prueba, en español.
+
+Coloca cada audio junto a un .txt con EL MISMO NOMBRE que contenga exactamente
+lo que dijiste. Ese .txt es la referencia: sin el no se puede medir la
+precision (WER).
+
+  audio1.wav  +  audio1.txt
+  audio2.mp3  +  audio2.txt
+  audio3.wav  +  audio3.txt
+
+Recomendados tres casos distintos, para que la comparacion diga algo:
+
+  audio1  Frase corta en silencio        -> limite superior de precision
+  audio2  Frase con ruido de fondo      -> robustez
+  audio3  Nombre propio o termino tecnico -> efecto de --vocab en Gemini
+
+Formatos que acepta Gemini: .wav .mp3 .m4a .aac .aiff .ogg .opus .flac
+.webm .mpeg (lo que grabes desde el navegador suele ser .webm).
+
+RECUERDA: este .txt se sube al repositorio (tiene el texto que dijiste), pero
+los .wav/.mp3 normalmente no, por tamaño. Anade "*.wav" y "*.mp3" a .gitignore
+si quieres subirlos sin problema.

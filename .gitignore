@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Credenciales: nunca subir la clave
+.env
+
+# Editores
+.vscode/
+.idea/
+*.swp

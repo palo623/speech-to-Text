@@ -1,0 +1,21 @@
+LEEME: coloca aqui los 3 audios de prueba y sus referencias.
+
+Cada audio necesita un .txt con EL MISMO NOMBRE que contenga lo que dijiste:
+
+  audio1.wav  +  audio1.txt
+  audio2.mp3  +  audio2.txt
+  audio3.wav  +  audio3.txt
+
+Ese .txt es la referencia contra la que se mide el WER. Sin el, el script
+transcribe igual, pero no puede calcular precision.
+
+Ejemplos de texto de referencia:
+
+  audio1.txt
+    Hoy es martes y voy a grabar tres audios de prueba para comparar
+    dos metodos de transcripcion automatica.
+
+  audio3.txt
+    Pablo desplego Kubernetes en BigQuery el jueves por la manana.
+
+La estructura completa del proyecto esta en ../README.md
